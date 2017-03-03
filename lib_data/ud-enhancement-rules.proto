@@ -184,9 +184,20 @@ rulegroup {
     }
   }
   rule {
+    name: "vp conjunction"
+    # John "ate" apple and "suffered".
+    priority: 10
+    tregex: "/^l-conj$/=relation $ /^t-(?:VERB)$/ $,, /^l-dobj$/ < /^t-(?:VERB)$/"
+    transformation {
+      target: "relation"
+      action: CHANGE_LABEL
+      label: "l-conj-vp"
+    }
+  }
+  rule {
     name: "verb conjunction"
     # "directed" and "produced"
-    priority: 10
+    priority: 15
     tregex: "/^l-conj$/=relation $ /^t-(?:VERB)$/ < /^t-(?:VERB)$/"
     transformation {
       target: "relation"
@@ -323,7 +334,7 @@ rulegroup {
   }
 }
 rulegroup {
-  name: "Control constructions"
+  name: "xcomp constructions"    
   priority: 1
   rule {
     name: "object of controller as subject to the controlled verb"
@@ -362,4 +373,6 @@ rulegroup {
       child: "v-{originword}"
     }
   }
+  # TODO: Note clear how to handle "Elizabeth became queen"
+  # Currently this sentence is handled as "(Elizabeth became (Elizabeth is queen))"
 }

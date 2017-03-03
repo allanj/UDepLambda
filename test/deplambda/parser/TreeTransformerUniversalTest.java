@@ -1108,6 +1108,50 @@ public class TreeTransformerUniversalTest {
         "[direct.arg1(1:e , 0:m.cameron), direct.arg2(1:e , 2:m.titanic), produce.arg1(4:e , 0:m.cameron), produce.arg2(4:e , 5:m.avatar)]",
         cleanedPredicates.toString());
 
+    // VP conjunction tricky.
+    // issue: https://github.com/sivareddyg/UDepLambda/issues/10
+    jsonSentence =
+        jsonParser
+            .parse(
+                "{\"sentence\":\"John ate apple and suffered.\",\"words\":[{\"word\":\"John\",\"lemma\":\"John\",\"pos\":\"PROPN\",\"ner\":\"PERSON\",\"index\":1,\"head\":2,\"dep\":\"nsubj\"},{\"word\":\"ate\",\"lemma\":\"eat\",\"pos\":\"VERB\",\"ner\":\"O\",\"dep\":\"root\",\"head\":0,\"index\":2},{\"word\":\"apple\",\"lemma\":\"apple\",\"pos\":\"PROPN\",\"ner\":\"O\",\"index\":3,\"head\":2,\"dep\":\"dobj\"},{\"word\":\"and\",\"lemma\":\"and\",\"pos\":\"CONJ\",\"ner\":\"O\",\"index\":4,\"head\":2,\"dep\":\"cc\"},{\"word\":\"suffered\",\"lemma\":\"suffer\",\"pos\":\"VERB\",\"ner\":\"O\",\"index\":5,\"head\":2,\"dep\":\"conj\"},{\"word\":\".\",\"lemma\":\".\",\"pos\":\"PUNCT\",\"ner\":\"O\",\"index\":6,\"head\":2,\"dep\":\"punct\",\"sentEnd\":true}],\"entities\":[{\"phrase\":\"John\",\"start\":0,\"end\":0,\"index\":0}]}")
+            .getAsJsonObject();
+    sentence = new Sentence(jsonSentence);
+
+    // TreeTransformationRules for modifying the structure of a tree.
+    TreeTransformer.applyRuleGroupsOnTree(enhancementRules,
+        sentence.getRootNode());
+    assertEquals(
+        "(l-root w-2-eat t-VERB (l-nsubj w-1-john t-PROPN) (l-dobj w-3-apple t-PROPN) (l-cc w-4-and t-CONJ) (l-conj-vp w-5-suffer t-VERB) (l-punct w-6-. t-PUNCT))",
+        sentence.getRootNode().toString());
+
+    binarizedTreeString =
+        TreeTransformer.binarizeTree(sentence.getRootNode(),
+            obliquenessHierarchyRules.getRelationPriority());
+    assertEquals(
+        "(l-punct (l-nsubj (l-conj-vp (l-dobj (l-cc w-2-eat w-4-and) w-3-apple) w-5-suffer) w-1-john) w-6-.)",
+        binarizedTreeString);
+
+    // Assign lambdas.
+    TreeTransformer.applyRuleGroupsOnTree(substitutionRules,
+        sentence.getRootNode());
+
+    // Composing lambda.
+    sentenceSemantics =
+        TreeTransformer.composeSemantics(sentence.getRootNode(),
+            obliquenessHierarchyRules.getRelationPriority(), false);
+
+    assertEquals(1, sentenceSemantics.second().size());
+    assertEquals(
+        "(lambda $0:<a,e> (exists:ex $1:<a,e> (and:c (exists:ex $2:<a,e> (exists:ex $3:<a,e> (and:c (exists:ex $4:<a,e> (and:c (exists:ex $5:<a,e> (and:c (p_EVENT_w-2-eat:u $2) (p_EMPTY:u $5))) (p_TYPE_w-3-apple:u $4) (p_EVENT.ENTITY_arg2:b $2 $4))) (p_EVENT_w-5-suffer:u $3) (p_CONJ:tri $0 $2 $3)))) (p_TYPE_w-1-john:u $1) (p_EVENT.ENTITY_arg1:b $0 $1))))",
+        sentenceSemantics.second().get(0).toString());
+    cleanedPredicates =
+        Lists.newArrayList(PostProcessLogicalForm.process(sentence,
+            sentenceSemantics.second().get(0), true));
+    Collections.sort(cleanedPredicates);
+    assertEquals(
+        "[eat.arg1(1:e , 0:m.John), eat.arg2(1:e , 2:m.apple), suffer.arg1(4:e , 0:m.John)]",
+        cleanedPredicates.toString());
+    
     // Verb conjunction.
     jsonSentence =
         jsonParser
@@ -1761,43 +1805,6 @@ public class TreeTransformerUniversalTest {
     assertEquals(
         "[certain.arg1(2:e , 0:x), certain.ccomp(2:e , 5:e), do.arg1(5:e , 4:x), do.arg2(5:e , 6:x), he(4:s , 4:x), i(0:s , 0:x), it(6:s , 6:x)]",
         cleanedPredicates.toString());
-
-
-    /*- // uncomment this block if you don't use the hack that xcomp is similar to conj.
-    // TreeTransformationRules for modifying the structure of a tree.
-    TreeTransformer.applyRuleGroupsOnTree(treeTransformationRules,
-        sentence.getRootNode());
-    assertEquals(
-        "(l-root w-3-certain t-ADJ (l-nsubj w-1-i t-PRON) (l-cop w-2-be t-VERB) (l-ccomp w-6-do t-VERB (l-mark w-4-that t-SCONJ) (l-nsubj w-5-he t-PRON) (l-dobj w-7-it t-PRON)) (l-punct w-8-. t-PUNCT))",
-        sentence.getRootNode().toString());
-
-    String binarizedTreeString =
-        TreeTransformer.binarizeTree(sentence.getRootNode(),
-            relationRules.getRelationPriority());
-    assertEquals(
-        "(l-punct (l-nsubj (l-ccomp (l-cop w-3-certain w-2-be) (l-mark (l-nsubj (l-dobj w-6-do w-7-it) w-5-he) w-4-that)) w-1-i) w-8-.)",
-        binarizedTreeString);
-
-    // Assign lambdas.
-    TreeTransformer.applyRuleGroupsOnTree(lambdaAssignmentRules,
-        sentence.getRootNode());
-
-    // Composing lambda.
-    Pair<String, List<LogicalExpression>> sentenceSemantics =
-        TreeTransformer.composeSemantics(sentence.getRootNode(),
-            relationRules.getRelationPriority(), false);
-
-    assertEquals(1, sentenceSemantics.second().size());
-    assertEquals(
-        "(lambda $0:<a,e> (exists:ex $1:<a,e> (and:c (exists:ex $2:<a,e> (and:c (p_EVENT_w-3-certain:u $0) (exists:ex $3:<a,e> (and:c (exists:ex $4:<a,e> (and:c (p_EVENT_w-6-do:u $2) (p_TYPE_w-7-it:u $4) (p_EVENT.ENTITY_arg2:b $2 $4))) (p_TYPE_w-5-he:u $3) (p_EVENT.ENTITY_arg1:b $2 $3))) (p_EVENT.EVENT_l-ccomp:b $0 $2))) (p_TYPE_w-1-i:u $1) (p_EVENT.ENTITY_arg1:b $0 $1))))",
-        sentenceSemantics.second().get(0).toString());
-    List<String> cleanedPredicates =
-        Lists.newArrayList(PostProcessLogicalForm.process(sentence,
-            sentenceSemantics.second().get(0), true));
-    Collections.sort(cleanedPredicates);
-    assertEquals(
-        "[I(0:s , 0:x), certain.arg1(2:e , 0:x), certain.ccomp(2:e , 5:e), do.arg1(5:e , 4:x), do.arg2(5:e , 6:x), he(4:s , 4:x), it(6:s , 6:x)]",
-        cleanedPredicates.toString());*/
   }
 
   @Test
